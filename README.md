@@ -67,8 +67,9 @@ from nebelus import Nebelus, from_langgraph
 t = from_langgraph(
     my_state_graph,
     node_map={"triage": {"type": "agent", "config": {"system_prompt": "...", "model_id": "claude-haiku-4-5"}}},
-    router_map={"triage": {"conditions": [{"expression": "...", "target": "billing"}],
-                           "default_target": "general"}},
+    router_map={"triage": {"field": "triage_out",
+                           "routes": {"billing": "billing", "general": "general"},
+                           "default": "general"}},
     manifest_id="triage-v1", name="Triage", model_id="claude-haiku-4-5",
 )
 if t.complete:

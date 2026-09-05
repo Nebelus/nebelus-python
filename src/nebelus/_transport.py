@@ -62,7 +62,7 @@ class Transport:
         self.base_url = (base_url or os.environ.get("NEBELUS_BASE_URL") or DEFAULT_BASE_URL).rstrip("/")
         self._client = httpx.Client(
             base_url=f"{self.base_url}{API_PREFIX}",
-            headers={"Authorization": f"Bearer {self.api_key}", "User-Agent": "nebelus-python/0.1.1"},
+            headers={"Authorization": f"Bearer {self.api_key}", "User-Agent": "nebelus-python/0.1.2"},
             timeout=timeout,
         )
 

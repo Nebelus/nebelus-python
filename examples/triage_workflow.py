@@ -13,10 +13,12 @@ manifest = AgentManifest(
             {"name": "triage", "type": "agent",
              "config": {"system_prompt": "Classify the request as 'billing' or 'general'. Reply with exactly one word.",
                         "model_id": "claude-haiku-4-5"}},
+            # A condition node routes on config.routes (value -> target; the canvas
+            # draws one line per entry) and/or config.expression (+ config.default).
             {"name": "router", "type": "condition",
-             "config": {"conditions": [{"expression": "'billing' in str(state.get('triage_out','')).lower()",
-                                        "target": "billing"}],
-                        "default_target": "general"}},
+             "config": {"expression": "'billing' if 'billing' in str(state.get('triage_out','')).lower() else 'general'",
+                        "routes": {"billing": "billing", "general": "general"},
+                        "default": "general"}},
             {"name": "billing", "type": "agent",
              "config": {"system_prompt": "You are the billing specialist. Be precise.",
                         "model_id": "claude-haiku-4-5"}},

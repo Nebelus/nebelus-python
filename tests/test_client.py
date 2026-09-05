@@ -223,8 +223,9 @@ def test_from_langgraph_complete_translation():
         {"triage": AGENT_NODE, "billing": AGENT_NODE, "general": AGENT_NODE},
         router_map={
             "triage": {
-                "conditions": [{"expression": "'billing' in str(state.get('triage_out',''))", "target": "billing"}],
-                "default_target": "general",
+                "field": "triage_out",
+                "routes": {"billing": "billing", "general": "general"},
+                "default": "general",
             }
         },
         manifest_id="lg-v1",
@@ -256,7 +257,8 @@ def test_from_langgraph_flags_unrouted_branch_target():
     t = from_langgraph(
         _lg_graph(),
         {"triage": AGENT_NODE, "billing": AGENT_NODE, "general": AGENT_NODE},
-        router_map={"triage": {"conditions": [], "default_target": "general"}},
+        # routes only 'general'; the branch can also reach 'billing' -> advisory
+        router_map={"triage": {"field": "triage_out", "routes": {"general": "general"}, "default": "general"}},
         manifest_id="lg-v3",
         name="LG",
         model_id="claude-haiku-4-5",
@@ -264,6 +266,22 @@ def test_from_langgraph_flags_unrouted_branch_target():
     # advisory, not blocking: manifest still produced, gap still named.
     assert t.complete
     assert any("'billing'" in d and "never routes" in d for d in t.diagnostics)
+
+
+def test_from_langgraph_blocks_router_with_no_routing_basis():
+    from nebelus.langgraph import from_langgraph
+
+    t = from_langgraph(
+        _lg_graph(),
+        {"triage": AGENT_NODE, "billing": AGENT_NODE, "general": AGENT_NODE},
+        # the wrong shape (conditions/default_target) has no routing basis -> blocking
+        router_map={"triage": {"conditions": [], "default_target": "general"}},
+        manifest_id="lg-v4",
+        name="LG",
+        model_id="claude-haiku-4-5",
+    )
+    assert not t.complete
+    assert any("no routing basis" in d for d in t.diagnostics)
 
 
 # ------------------------------------------------------------ rate-limit handling

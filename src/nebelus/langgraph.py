@@ -54,14 +54,18 @@ def from_langgraph(
 
     ``node_map``: LangGraph node name → Nebelus node dict, e.g.
         {"triage": {"type": "agent", "config": {"system_prompt": ..., "model_id": ...}}}
-    ``router_map``: branch source name → condition-node config, e.g.
-        {"triage": {"conditions": [{"expression": ..., "target": "billing"}],
-                    "default_target": "general"}}
+    ``router_map``: branch source name → condition-node config in the canonical
+    schema (route on a value map and/or an expression), e.g.
+        {"triage": {"field": "triage_out",
+                    "routes": {"billing": "billing", "general": "general"},
+                    "default": "general"}}
+    A LangGraph ``path_map`` ({value: target}) maps directly onto ``routes``.
     A router node named ``<source>__router`` is inserted after each mapped
     branch source. Unmapped nodes/branches produce diagnostics and no manifest.
     """
     router_map = router_map or {}
     diagnostics: list[str] = []
+    advisories: list[str] = []  # non-blocking: a manifest is still produced
     lg_nodes = list(graph.nodes)
     lg_edges = sorted(graph.edges)
     lg_branches = dict(getattr(graph, "branches", {}) or {})
@@ -97,24 +101,40 @@ def from_langgraph(
             diagnostics.append(
                 f"branch on '{source}' routes via a Python callable (targets: "
                 f"{sorted(targets) or 'unknown'}) — declare it in router_map as a "
-                f"condition config with 'conditions' expressions and a 'default_target'."
+                f"condition config with a 'routes' map (value -> target) and a "
+                f"'default', or an 'expression' (+ 'default')."
+            )
+            continue
+        # Canonical condition schema (matches the API's describe/ and the visual
+        # builder): route on config.routes (value -> target, drawn on the canvas)
+        # and/or config.expression (+ config.default). A LangGraph path_map maps
+        # directly onto routes. A config with no routing basis can't branch.
+        if not (router_cfg.get("routes") or router_cfg.get("expression") or router_cfg.get("field")):
+            diagnostics.append(
+                f"router_map['{source}'] has no routing basis — give it a 'routes' map "
+                f"(value -> target) and/or an 'expression'; keys like 'conditions'/"
+                f"'default_target' are not part of the condition schema and are ignored."
             )
             continue
         router_name = f"{source}__router"
         nodes.append({"name": router_name, "type": "condition", "config": router_cfg})
         edges.append({"from": source, "to": router_name})
-        declared = {c.get("target") for c in router_cfg.get("conditions", [])}
-        declared.add(router_cfg.get("default_target"))
-        for missing in sorted(t for t in targets if t not in declared and t != END):
-            diagnostics.append(
-                f"router_map for '{source}' never routes to '{missing}', which the "
-                f"LangGraph branch could reach — add a condition or make it the default."
-            )
+        declared = set((router_cfg.get("routes") or {}).values())
+        declared.add(router_cfg.get("default"))
+        # Only value-routing exposes its targets statically; skip the coverage
+        # hint for expression-only routers (targets aren't knowable here).
+        if router_cfg.get("routes"):
+            for missing in sorted(t for t in targets if t not in declared and t != END):
+                advisories.append(
+                    f"router_map for '{source}' never routes to '{missing}', which the "
+                    f"LangGraph branch could reach — add it to 'routes' or make it the 'default'."
+                )
 
     pattern_config = {"nodes": nodes, "edges": edges}
-    blocking = [d for d in diagnostics if "add a condition" not in d]
+    # `diagnostics` are blocking (no manifest); `advisories` are non-blocking
+    # coverage hints. Both are surfaced together on the result.
     manifest = None
-    if not blocking:
+    if not diagnostics:
         manifest = AgentManifest(
             manifest_id=manifest_id,
             name=name,
@@ -123,4 +143,5 @@ def from_langgraph(
             pattern_config=pattern_config,
             **manifest_fields,
         )
-    return Translation(manifest=manifest, pattern_config=pattern_config, diagnostics=diagnostics)
+    return Translation(manifest=manifest, pattern_config=pattern_config,
+                       diagnostics=diagnostics + advisories)

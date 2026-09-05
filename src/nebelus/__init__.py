@@ -6,7 +6,7 @@ from .export import export_to_code
 from .langgraph import Translation, from_langgraph
 from .models import Agent, AgentManifest, ProbeResult, ValidationResult
 
-__version__ = "0.1.1"
+__version__ = "0.1.2"
 __all__ = [
     "Agent",
     "AgentManifest",
