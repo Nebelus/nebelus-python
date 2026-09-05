@@ -180,6 +180,17 @@ class Nebelus:
                 return agent
         return None
 
+    @staticmethod
+    def _in_sync(have: Any, want: Any) -> bool:
+        """Merge-contract equality: for dict values, only the keys the manifest
+        DECLARES count — server-side normalization keys (e.g. a pattern_config
+        gaining `conditional_edges: []`) and other writers' keys are not drift."""
+        if isinstance(want, dict) and isinstance(have, dict):
+            return all(Nebelus._in_sync(have.get(k), v) for k, v in want.items())
+        if isinstance(want, list) and isinstance(have, list):
+            return len(have) == len(want) and all(Nebelus._in_sync(h, w) for h, w in zip(have, want))
+        return have == want
+
     def diff(self, manifest: AgentManifest) -> dict[str, Any]:
         """What `apply` would change: {} when in sync; {'create': fields} when the
         agent doesn't exist; else {field: (current, desired)} for declared fields."""
@@ -192,11 +203,8 @@ class Nebelus:
         body = current.model_dump()
         changes: dict[str, Any] = {}
         for key, want in desired.items():
-            have = body.get(key)
-            if key == "metadata" and isinstance(have, dict):
-                have = {k: v for k, v in have.items() if k in (want or {})}
-            if have != want:
-                changes[key] = (have, want)
+            if not self._in_sync(body.get(key), want):
+                changes[key] = (body.get(key), want)
         return changes
 
     def apply(self, manifest: AgentManifest) -> Agent:

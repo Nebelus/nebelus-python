@@ -77,3 +77,12 @@ def test_graph_ops_and_probe(nb):
     respx.post(f"{BASE}/agents/a1/probe/").mock(
         return_value=httpx.Response(200, json={"status": "completed", "reply": "OK"}))
     assert nb.agents.probe("a1", "hi").reply == "OK"
+
+
+def test_in_sync_ignores_server_normalization_and_other_writers():
+    from nebelus.client import Nebelus as N
+
+    want = {"nodes": [{"name": "a", "config": {"x": 1}}], "edges": []}
+    have = {"nodes": [{"name": "a", "config": {"x": 1}}], "edges": [], "conditional_edges": []}
+    assert N._in_sync(have, want) is True
+    assert N._in_sync({"nodes": [], "edges": []}, want) is False
