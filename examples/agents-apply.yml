@@ -1,0 +1,20 @@
+# Copy to .github/workflows/ in the repo that holds your agent manifests.
+# PRs show the diff; merges to main apply it. Deploys stay a human act unless
+# your org opted in and the key carries the deploy scope.
+name: Agents
+on:
+  pull_request:
+    paths: ["agents/**.py"]
+  push:
+    branches: [main]
+    paths: ["agents/**.py"]
+jobs:
+  agents:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: Nebelus/nebelus-python/action@main
+        with:
+          manifests: agents/*.py
+          api-key: ${{ secrets.NEBELUS_API_KEY }}
+          mode: ${{ github.event_name == 'push' && 'apply' || 'diff' }}

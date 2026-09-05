@@ -1,0 +1,39 @@
+name: "Nebelus Agents Apply"
+description: "Diff or apply Nebelus agent manifests (.py defining `manifest = AgentManifest(...)`) from your repo."
+branding:
+  icon: upload-cloud
+  color: orange
+inputs:
+  manifests:
+    description: "Whitespace-separated manifest file paths"
+    required: true
+  api-key:
+    description: "Nebelus API key (store as a repo secret)"
+    required: true
+  base-url:
+    description: "API base URL"
+    required: false
+    default: "https://api.nebelus.ai"
+  mode:
+    description: "'diff' (report only — use on pull_request) or 'apply' (use on push to main)"
+    required: false
+    default: "diff"
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-python@v5
+      with:
+        python-version: "3.12"
+    - shell: bash
+      run: pip install --quiet nebelus
+    - shell: bash
+      env:
+        NEBELUS_API_KEY: ${{ inputs.api-key }}
+        NEBELUS_BASE_URL: ${{ inputs.base-url }}
+      run: |
+        set -euo pipefail
+        for f in ${{ inputs.manifests }}; do
+          echo "::group::${{ inputs.mode }} $f"
+          nebelus "${{ inputs.mode }}" "$f"
+          echo "::endgroup::"
+        done

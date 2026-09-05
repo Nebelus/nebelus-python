@@ -78,3 +78,16 @@ else:
 ```
 
 Install the source-graph dependency with `pip install "nebelus[langgraph]"`.
+
+## GitHub Action
+
+Keep manifests in git and let CI hold them in sync — PRs show the diff, merges apply it
+(see `examples/agents-apply.yml`):
+
+```yaml
+- uses: Nebelus/nebelus-python/action@main
+  with:
+    manifests: agents/*.py
+    api-key: ${{ secrets.NEBELUS_API_KEY }}
+    mode: ${{ github.event_name == 'push' && 'apply' || 'diff' }}
+```
