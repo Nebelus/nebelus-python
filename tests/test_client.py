@@ -264,3 +264,72 @@ def test_from_langgraph_flags_unrouted_branch_target():
     # advisory, not blocking: manifest still produced, gap still named.
     assert t.complete
     assert any("'billing'" in d and "never routes" in d for d in t.diagnostics)
+
+
+# ------------------------------------------------------------ rate-limit handling
+
+
+def test_429_with_short_retry_after_is_retried(respx_mock, monkeypatch):
+    import nebelus._transport as tr
+
+    naps = []
+    monkeypatch.setattr(tr.time, "sleep", naps.append)
+    route = respx_mock.get(f"{BASE}/describe/")
+    route.side_effect = [
+        httpx.Response(429, json={"detail": "throttled"}, headers={"Retry-After": "1"}),
+        httpx.Response(200, json={"ok": True}),
+    ]
+    nb = Nebelus(api_key="k", base_url="https://api.test")
+    assert nb.describe() == {"ok": True}
+    assert naps == [1.0]
+
+
+def test_429_with_long_retry_after_surfaces_ratelimited(respx_mock):
+    from nebelus import RateLimited
+
+    respx_mock.get(f"{BASE}/describe/").respond(429, json={"detail": "throttled"}, headers={"Retry-After": "3600"})
+    nb = Nebelus(api_key="k", base_url="https://api.test")
+    with pytest.raises(RateLimited) as exc:
+        nb.describe()
+    assert exc.value.retry_after == 3600.0
+
+
+def test_find_by_manifest_id_uses_server_filter_fast_path(respx_mock):
+    """New servers echo manifest_id in filtered rows — exactly ONE detail GET."""
+    respx_mock.get(f"{BASE}/agents/").respond(
+        200,
+        json={
+            "results": [
+                {"id": "a-1", "name": "x", "status": "draft", "manifest_id": "m-1"},
+            ]
+        },
+    )
+    detail = respx_mock.get(f"{BASE}/agents/a-1/").respond(
+        200, json={"id": "a-1", "name": "x", "status": "draft", "metadata": {"manifest_id": "m-1"}}
+    )
+    nb = Nebelus(api_key="k", base_url="https://api.test")
+    agent = nb.find_by_manifest_id("m-1")
+    assert agent is not None and agent.id == "a-1"
+    assert detail.call_count == 1
+
+
+def test_find_by_manifest_id_falls_back_on_old_servers(respx_mock):
+    """Old servers ignore ?manifest_id= and omit the field — every row is checked."""
+    respx_mock.get(f"{BASE}/agents/").respond(
+        200,
+        json={
+            "results": [
+                {"id": "a-1", "name": "x", "status": "draft"},
+                {"id": "a-2", "name": "y", "status": "draft"},
+            ]
+        },
+    )
+    respx_mock.get(f"{BASE}/agents/a-1/").respond(
+        200, json={"id": "a-1", "name": "x", "status": "draft", "metadata": {}}
+    )
+    respx_mock.get(f"{BASE}/agents/a-2/").respond(
+        200, json={"id": "a-2", "name": "y", "status": "draft", "metadata": {"manifest_id": "m-2"}}
+    )
+    nb = Nebelus(api_key="k", base_url="https://api.test")
+    agent = nb.find_by_manifest_id("m-2")
+    assert agent is not None and agent.id == "a-2"

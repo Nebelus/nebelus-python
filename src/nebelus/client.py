@@ -19,8 +19,9 @@ class _Agents:
     def __init__(self, t: Transport):
         self._t = t
 
-    def list(self) -> list[dict]:
-        rows = self._t.request("GET", "/agents/")
+    def list(self, manifest_id: str | None = None) -> list[dict]:
+        params = {"manifest_id": manifest_id} if manifest_id else None
+        rows = self._t.request("GET", "/agents/", params=params)
         return rows.get("results", []) if isinstance(rows, dict) else rows
 
     def get(self, agent_id: str) -> Agent:
@@ -175,7 +176,13 @@ class Nebelus:
 
     # ------------------------------------------------------------------ apply
     def find_by_manifest_id(self, manifest_id: str) -> Agent | None:
-        for row in self.agents.list():
+        # Fast path: server-side ?manifest_id= lookup (rows echo manifest_id).
+        # Older servers ignore the filter and omit the field from rows — for
+        # those, fall through to checking each agent's metadata directly.
+        rows = self.agents.list(manifest_id=manifest_id)
+        if all("manifest_id" in row for row in rows):
+            rows = [row for row in rows if row.get("manifest_id") == manifest_id]
+        for row in rows:
             try:
                 agent = self.agents.get(row["id"])
             except NotFound:

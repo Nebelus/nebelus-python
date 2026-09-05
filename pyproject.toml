@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "nebelus"
-version = "0.1.0"
+version = "0.1.1"
 description = "Nebelus Agents API — build, edit, and ship governed AI agents from code"
 readme = "README.md"
 requires-python = ">=3.10"

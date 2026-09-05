@@ -91,3 +91,9 @@ Keep manifests in git and let CI hold them in sync — PRs show the diff, merges
     api-key: ${{ secrets.NEBELUS_API_KEY }}
     mode: ${{ github.event_name == 'push' && 'apply' || 'diff' }}
 ```
+
+## Rate limits
+
+The API rate-limits per key (generous defaults; probes are tighter since each spends real
+model money). The SDK waits out short `Retry-After` pauses automatically and raises
+`nebelus.RateLimited` (with `.retry_after`) when the pause is too long to hold in-process.
