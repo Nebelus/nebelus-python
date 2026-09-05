@@ -76,8 +76,9 @@ class _Graph:
     def add_node(self, node: dict) -> dict:
         return self._op("add_node", node=node)
 
-    def update_node(self, name: str, config_patch: dict | None = None,
-                    position: dict | None = None, new_name: str | None = None) -> dict:
+    def update_node(
+        self, name: str, config_patch: dict | None = None, position: dict | None = None, new_name: str | None = None
+    ) -> dict:
         args: dict[str, Any] = {"name": name}
         if config_patch is not None:
             args["config_patch"] = config_patch
@@ -125,8 +126,11 @@ class _Resources:
         return self._t.request("GET", "/deployments/")
 
     def create_deployment(self, agent_id: str, deployment_type: str, name: str, **kwargs: Any) -> dict:
-        return self._t.request("POST", "/deployments/", json={
-            "agent_id": agent_id, "deployment_type": deployment_type, "name": name, **kwargs})
+        return self._t.request(
+            "POST",
+            "/deployments/",
+            json={"agent_id": agent_id, "deployment_type": deployment_type, "name": name, **kwargs},
+        )
 
     def activate_deployment(self, deployment_id: str, active: bool = True) -> dict:
         return self._t.request("POST", f"/deployments/{deployment_id}/activate/", json={"active": active})
@@ -150,7 +154,7 @@ class Nebelus:
     def close(self) -> None:
         self._t.close()
 
-    def __enter__(self) -> Nebelus:
+    def __enter__(self) -> Nebelus:  # noqa: PYI034 — Self needs py3.11; floor is 3.10
         return self
 
     def __exit__(self, *exc: object) -> None:

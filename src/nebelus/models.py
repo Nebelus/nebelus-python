@@ -20,8 +20,8 @@ class Agent(BaseModel):
     pattern_config: dict | None = None
     model_id: str | None = None
     system_message: str | None = None
-    needed_tools: dict | None = None
-    needed_agents: dict | None = None
+    needed_tools: list | dict | None = None
+    needed_agents: list | dict | None = None
     tags: list | None = None
     metadata: dict | None = None
     governance_policies: list | None = None
@@ -62,7 +62,7 @@ class AgentManifest(BaseModel):
     system_message: str | None = None
     pattern_type: str | None = None
     pattern_config: dict | None = None
-    needed_tools: dict | None = None
+    needed_tools: list | dict | None = None
     tags: list | None = None
     metadata: dict | None = None
 
