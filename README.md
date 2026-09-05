@@ -98,3 +98,10 @@ Keep manifests in git and let CI hold them in sync — PRs show the diff, merges
 The API rate-limits per key (generous defaults; probes are tighter since each spends real
 model money). The SDK waits out short `Retry-After` pauses automatically and raises
 `nebelus.RateLimited` (with `.retry_after`) when the pause is too long to hold in-process.
+
+## Version support
+
+The API supports the current SDK minor and one behind. The SDK sends its version
+in the `User-Agent`; when your version falls below the floor the API responds
+`426` and the SDK raises `nebelus.UpgradeRequired` (`pip install -U nebelus`).
+Before that, a deprecation warning is emitted so upgrades are never a surprise.

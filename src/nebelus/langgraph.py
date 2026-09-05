@@ -143,5 +143,4 @@ def from_langgraph(
             pattern_config=pattern_config,
             **manifest_fields,
         )
-    return Translation(manifest=manifest, pattern_config=pattern_config,
-                       diagnostics=diagnostics + advisories)
+    return Translation(manifest=manifest, pattern_config=pattern_config, diagnostics=diagnostics + advisories)

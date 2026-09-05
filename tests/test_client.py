@@ -351,3 +351,42 @@ def test_find_by_manifest_id_falls_back_on_old_servers(respx_mock):
     nb = Nebelus(api_key="k", base_url="https://api.test")
     agent = nb.find_by_manifest_id("m-2")
     assert agent is not None and agent.id == "a-2"
+
+
+# ------------------------------------------------------- SDK version handling
+
+
+def test_426_raises_upgrade_required(respx_mock):
+    from nebelus import UpgradeRequired
+
+    respx_mock.get(f"{BASE}/describe/").respond(
+        426, json={"detail": "too old", "min_version": "0.5.0", "upgrade": "pip install -U nebelus"}
+    )
+    nb = Nebelus(api_key="k", base_url="https://api.test")
+    with pytest.raises(UpgradeRequired) as exc:
+        nb.describe()
+    assert exc.value.min_version == "0.5.0"
+    assert exc.value.status_code == 426
+
+
+def test_deprecation_header_warns_once(respx_mock, recwarn):
+    import nebelus._transport as tr
+
+    tr._warned_deprecations.clear()
+    respx_mock.get(f"{BASE}/describe/").respond(
+        200, json={"ok": True}, headers={"X-Nebelus-SDK-Deprecation": "upgrade to >= 0.5.0"}
+    )
+    nb = Nebelus(api_key="k", base_url="https://api.test")
+    nb.describe()
+    nb.describe()  # same message -> only one warning
+    dep = [w for w in recwarn.list if issubclass(w.category, DeprecationWarning)]
+    assert len(dep) == 1 and "0.5.0" in str(dep[0].message)
+
+
+def test_user_agent_matches_version():
+    import nebelus
+    from nebelus._transport import Transport
+
+    t = Transport(api_key="k", base_url="https://api.test")
+    ua = t._client.headers["User-Agent"]
+    assert ua == f"nebelus-python/{nebelus.__version__}"

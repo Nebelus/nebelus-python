@@ -4,17 +4,26 @@ from __future__ import annotations
 
 import os
 import time
+import warnings
 from typing import Any
 
 import httpx
 
+# THE single source of the version. The User-Agent carries it, the server's
+# support-window floor keys on it, and __init__ re-exports it as __version__ —
+# so the advertised version and the wire version can never drift apart.
+SDK_VERSION = "0.1.3"
+
 DEFAULT_BASE_URL = "https://api.nebelus.ai"
 API_PREFIX = "/api/v1/construction"
+DEPRECATION_HEADER = "X-Nebelus-SDK-Deprecation"
 
 # 429s are retried automatically when the server's Retry-After is short enough
 # to wait out in-process; longer waits surface as RateLimited for the caller.
 MAX_RETRY_AFTER_SECONDS = 30.0
 MAX_RATE_LIMIT_RETRIES = 2
+
+_warned_deprecations: set[str] = set()
 
 
 class NebelusAPIError(Exception):
@@ -54,6 +63,15 @@ class RateLimited(NebelusAPIError):
         self.retry_after = retry_after
 
 
+class UpgradeRequired(NebelusAPIError):
+    """426 — this SDK version is below the server's minimum supported version.
+    `min_version` is the floor to upgrade past (pip install -U nebelus)."""
+
+    @property
+    def min_version(self) -> str | None:
+        return self.payload.get("min_version")
+
+
 class Transport:
     def __init__(self, api_key: str | None = None, base_url: str | None = None, timeout: float = 60.0):
         self.api_key = api_key or os.environ.get("NEBELUS_API_KEY") or ""
@@ -62,7 +80,7 @@ class Transport:
         self.base_url = (base_url or os.environ.get("NEBELUS_BASE_URL") or DEFAULT_BASE_URL).rstrip("/")
         self._client = httpx.Client(
             base_url=f"{self.base_url}{API_PREFIX}",
-            headers={"Authorization": f"Bearer {self.api_key}", "User-Agent": "nebelus-python/0.1.2"},
+            headers={"Authorization": f"Bearer {self.api_key}", "User-Agent": f"nebelus-python/{SDK_VERSION}"},
             timeout=timeout,
         )
 
@@ -75,7 +93,10 @@ class Transport:
             if attempt == MAX_RATE_LIMIT_RETRIES or retry_after is None or retry_after > MAX_RETRY_AFTER_SECONDS:
                 raise RateLimited(429, _body_of(r), retry_after=retry_after)
             time.sleep(retry_after)
+        _maybe_warn_deprecation(r)
         body = _body_of(r)
+        if r.status_code == 426:
+            raise UpgradeRequired(r.status_code, body)
         if r.status_code == 404:
             raise NotFound(r.status_code, body)
         if r.status_code >= 400:
@@ -84,6 +105,14 @@ class Transport:
 
     def close(self) -> None:
         self._client.close()
+
+
+def _maybe_warn_deprecation(r: httpx.Response) -> None:
+    """Surface the server's deprecation header once per distinct message."""
+    msg = r.headers.get(DEPRECATION_HEADER)
+    if msg and msg not in _warned_deprecations:
+        _warned_deprecations.add(msg)
+        warnings.warn(msg, DeprecationWarning, stacklevel=3)
 
 
 def _body_of(r: httpx.Response) -> Any:
