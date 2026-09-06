@@ -43,6 +43,22 @@ nebelus export <agent-id> > agent.py   # a live agent as a maintainable Python m
 nebelus deploy <agent-id>              # needs the deploy scope + the org's opt-in
 ```
 
+## References & other surfaces
+
+- **Interactive API reference (Swagger):** `https://api.nebelus.ai/api/construction/docs/`
+  (`/api/construction/schema/` for the raw OpenAPI). KSA: `api.ksa.nebelus.ai`.
+- **Machine-readable capabilities:** `nb.describe()` / `GET /api/v1/construction/describe/` —
+  the capability registry (every settable feature and which surface can set it), the
+  writable/rejected fields, and your Build Envelope.
+- **Wiring an agent into your app:** `GET /api/v1/construction/agents/<id>/wiring/` returns the
+  REST invoke URL, WebSocket URL, webhook URL, web-widget embed snippet and MCP connection —
+  region-correct, in the exact formats to paste in.
+- **Build over MCP:** `https://api.nebelus.ai/api/v1/construction/mcp/` (connect Claude/Cursor).
+- **TypeScript:** `@nebelus/construction` is the TS peer of this SDK.
+
+Everything the visual builders can configure is reachable from here too — model routing,
+delivery guard, grounding trace, schedules, knowledge, connectors, governance and channels.
+
 ## Two-way with the portal
 
 `nebelus export` (or `nebelus.export_to_code`) turns any live agent — including one a
