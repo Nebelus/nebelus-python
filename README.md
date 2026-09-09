@@ -69,11 +69,26 @@ reports server-side normalization as drift.
 
 ## Coming from LangGraph
 
-`from_langgraph` translates a `StateGraph`'s topology into a Nebelus workflow — nodes,
-edges, and conditional-edge targets map mechanically (both sides share the
+Nebelus agents are **declarative**; a LangGraph node is **arbitrary Python**. The code
+path never imports or runs your compiled graph — `from_langgraph` translates its
+*topology* into a Nebelus `workflow` manifest, and you re-declare what each node does.
+Nodes, edges, and conditional-edge targets map mechanically (both sides share the
 `__start__`/`__end__` sentinels). What a node *does* and how a router *decides* live in
-your Python, so you declare those explicitly; anything with no declarative equivalent
-stays in your code and attaches to the agent as an MCP server or custom API endpoint.
+your Python, so you declare those explicitly.
+
+What you supply, and the rules the translator enforces:
+
+- Pass the **uncompiled** `StateGraph`, plus a `node_map` (each node → a declarative node,
+  e.g. `{"type": "agent", "config": {…}}`) and a `router_map` (each conditional branch → a
+  condition with a `routes` value→target map and/or an `expression`, plus a `default`).
+- **Every node and every branch must be mapped.** Unmapped ones return named diagnostics
+  and **no manifest** — nothing is guessed. Non-fatal coverage gaps come back as advisories.
+- Conditional edges need a `path_map` on `add_conditional_edges(…)` so their targets are
+  visible outside the Python callable; without it you get a blocking diagnostic.
+- Node logic with no declarative equivalent **stays in your code** and attaches to the agent
+  as a tool — an MCP server or a custom API endpoint. Nebelus never runs arbitrary code
+  inside a node.
+
 Incomplete translations return named diagnostics instead of a manifest — nothing is
 guessed:
 
@@ -94,7 +109,10 @@ else:
     print("\n".join(t.diagnostics))   # names every unmapped node and undeclared router
 ```
 
-Install the source-graph dependency with `pip install "nebelus[langgraph]"`.
+Install the source-graph dependency with `pip install "nebelus[langgraph]"`. And if your
+"LangGraph agent" is really a single ReAct loop (one model + tools), you don't need
+`from_langgraph` at all — that's just an `AgentManifest` with a `system_message`,
+`model_id`, and `needed_tools`.
 
 ## GitHub Action
 
