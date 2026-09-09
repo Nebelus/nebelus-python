@@ -114,6 +114,9 @@ Install the source-graph dependency with `pip install "nebelus[langgraph]"`. And
 `from_langgraph` at all — that's just an `AgentManifest` with a `system_message`,
 `model_id`, and `needed_tools`.
 
+A complete, runnable walkthrough — build a `StateGraph`, translate it, handle diagnostics,
+`apply` and `probe` — is in [`examples/langgraph_to_nebelus.py`](examples/langgraph_to_nebelus.py).
+
 ## GitHub Action
 
 Keep manifests in git and let CI hold them in sync — PRs show the diff, merges apply it
