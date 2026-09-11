@@ -34,6 +34,7 @@ Everything above is also a command (`pip install nebelus` puts `nebelus` on your
 
 ```bash
 nebelus describe                       # everything your org can build, machine-readable
+nebelus build "a support agent that answers from our return policy and escalates ambiguous cases"
 nebelus catalog --view tools --query crm
 nebelus apply agent.py                 # a file defining `manifest = AgentManifest(...)`
 nebelus diff agent.py                  # what apply would change ("in sync" when nothing)
@@ -42,6 +43,12 @@ nebelus probe <agent-id> "Hi there"    # run the draft through the real runtime
 nebelus export <agent-id> > agent.py   # a live agent as a maintainable Python manifest
 nebelus deploy <agent-id>              # needs the deploy scope + the org's opt-in
 ```
+
+**`nebelus build "<prompt>"`** is AI-assisted: describe the agent in plain language and the
+Nebelus Vibe Builder builds it for you — always as a **draft** — then hands it back so you
+`nebelus export` it and own it in code. It's the one synthesising command (everything else is
+deterministic — you specify the fields); it's billed as AI credits at the build rate. Same over
+the SDK: `nb.build("…")`.
 
 ## References & other surfaces
 
