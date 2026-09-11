@@ -23,16 +23,26 @@ print(nb.agents.probe(agent.id, "Can I return a jacket after 20 days?").reply)
 # nb.agents.deploy(agent.id)             # needs the api.construction.deploy scope + the org opt-in
 ```
 
-Keys: Nebelus portal → Settings → API keys (administrator-managed). Scopes:
-`api.construction.read`, `api.construction.write`, and `api.construction.deploy`.
-Your Build Envelope (if your organization uses one) applies to code exactly as it applies
-to every other surface.
+## Sign in
+
+Two ways to authenticate:
+
+```bash
+nebelus login          # device flow: opens a browser, you approve a short code — no API key needed
+```
+`nebelus login` stores tokens in `~/.nebelus/credentials.json` (refreshed automatically);
+`nebelus logout` removes them. Or set an API key from the portal (Settings → API keys):
+`export NEBELUS_API_KEY=…` (an explicit key always takes precedence over a stored login).
+
+Scopes: `api.construction.read`, `api.construction.write`, `api.construction.deploy`. Your
+Build Envelope (if your organization uses one) applies to code exactly as to every other surface.
 
 ## CLI
 
 Everything above is also a command (`pip install nebelus` puts `nebelus` on your PATH):
 
 ```bash
+nebelus login                          # sign in from the terminal (device flow)
 nebelus describe                       # everything your org can build, machine-readable
 nebelus build "a support agent that answers from our return policy and escalates ambiguous cases"
 nebelus catalog --view tools --query crm

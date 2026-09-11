@@ -29,6 +29,10 @@ def _load_manifest(path: str) -> AgentManifest:
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(prog="nebelus", description="Nebelus Agents API CLI")
     sub = ap.add_subparsers(dest="cmd", required=True)
+    lg = sub.add_parser("login", help="sign in from the terminal (device flow — no API key needed)")
+    lg.add_argument("--base-url", help="override the API host (default $NEBELUS_BASE_URL or api.nebelus.ai)")
+    lg.add_argument("--no-browser", action="store_true", help="don't auto-open the browser; just print the URL")
+    sub.add_parser("logout", help="remove the stored credentials")
     sub.add_parser("describe", help="everything buildable in this org, machine-readable")
     c = sub.add_parser("catalog", help="org catalog")
     c.add_argument("--view", default="models")
@@ -51,6 +55,23 @@ def main(argv: list[str] | None = None) -> int:
     v = sub.add_parser("validate", help="pre-flight findings")
     v.add_argument("agent_id")
     args = ap.parse_args(argv)
+
+    # login/logout run BEFORE constructing the client (login has no credentials yet).
+    if args.cmd == "login":
+        from ._auth import device_login
+
+        try:
+            creds = device_login(base_url=args.base_url, open_browser=not args.no_browser)
+        except Exception as exc:  # noqa: BLE001 — surface a clean CLI message
+            print(f"login failed: {exc}", file=sys.stderr)
+            return 1
+        print(f"\nSigned in. Credentials saved for {creds['base_url']}.")
+        return 0
+    if args.cmd == "logout":
+        from ._auth import clear_credentials
+
+        print("Signed out." if clear_credentials() else "No stored credentials.")
+        return 0
 
     nb = Nebelus()
     try:

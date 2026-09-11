@@ -12,7 +12,7 @@ import httpx
 # THE single source of the version. The User-Agent carries it, the server's
 # support-window floor keys on it, and __init__ re-exports it as __version__ —
 # so the advertised version and the wire version can never drift apart.
-SDK_VERSION = "0.1.5"
+SDK_VERSION = "0.1.6"
 
 DEFAULT_BASE_URL = "https://api.nebelus.ai"
 API_PREFIX = "/api/v1/construction"
@@ -75,24 +75,58 @@ class UpgradeRequired(NebelusAPIError):
 class Transport:
     def __init__(self, api_key: str | None = None, base_url: str | None = None, timeout: float = 60.0):
         self.api_key = api_key or os.environ.get("NEBELUS_API_KEY") or ""
-        if not self.api_key:
-            raise ValueError("No API key. Pass api_key= or set NEBELUS_API_KEY.")
-        self.base_url = (base_url or os.environ.get("NEBELUS_BASE_URL") or DEFAULT_BASE_URL).rstrip("/")
+        self._oauth: dict | None = None
+        if self.api_key:
+            # Explicit API key (or NEBELUS_API_KEY) wins — unchanged behaviour.
+            self.base_url = (base_url or os.environ.get("NEBELUS_BASE_URL") or DEFAULT_BASE_URL).rstrip("/")
+            token = self.api_key
+        else:
+            # Fall back to the stored `nebelus login` (device-auth) credentials.
+            from ._auth import load_credentials
+
+            creds = load_credentials()
+            if not creds or not creds.get("access_token"):
+                raise ValueError("No credentials. Run `nebelus login`, or pass api_key= / set NEBELUS_API_KEY.")
+            self._oauth = creds
+            self.base_url = (base_url or os.environ.get("NEBELUS_BASE_URL") or creds.get("base_url") or DEFAULT_BASE_URL).rstrip("/")
+            token = creds["access_token"]
         self._client = httpx.Client(
             base_url=f"{self.base_url}{API_PREFIX}",
-            headers={"Authorization": f"Bearer {self.api_key}", "User-Agent": f"nebelus-python/{SDK_VERSION}"},
+            headers={"Authorization": f"Bearer {token}", "User-Agent": f"nebelus-python/{SDK_VERSION}"},
             timeout=timeout,
         )
 
-    def request(self, method: str, path: str, *, json: Any = None, params: Any = None) -> Any:
+    def _try_refresh(self) -> bool:
+        """Rotate an expired OAuth token in-place. No-op for API-key transports."""
+        if not self._oauth or not self._oauth.get("refresh_token"):
+            return False
+        from ._auth import refresh_access_token, save_credentials
+
+        new = refresh_access_token(self.base_url, self._oauth["refresh_token"], self._oauth.get("client_id"))
+        if not new or "access_token" not in new:
+            return False
+        self._oauth["access_token"] = new["access_token"]
+        self._oauth["refresh_token"] = new.get("refresh_token", self._oauth.get("refresh_token"))
+        save_credentials(self._oauth)
+        self._client.headers["Authorization"] = f"Bearer {new['access_token']}"
+        return True
+
+    def _send(self, method: str, path: str, json: Any, params: Any) -> httpx.Response:
         for attempt in range(MAX_RATE_LIMIT_RETRIES + 1):
             r = self._client.request(method, path, json=json, params=params)
             if r.status_code != 429:
-                break
+                return r
             retry_after = _retry_after_seconds(r)
             if attempt == MAX_RATE_LIMIT_RETRIES or retry_after is None or retry_after > MAX_RETRY_AFTER_SECONDS:
                 raise RateLimited(429, _body_of(r), retry_after=retry_after)
             time.sleep(retry_after)
+        return r  # unreachable, but keeps the type checker happy
+
+    def request(self, method: str, path: str, *, json: Any = None, params: Any = None) -> Any:
+        r = self._send(method, path, json, params)
+        # A stored OAuth access token may have expired — rotate once and retry.
+        if r.status_code == 401 and self._try_refresh():
+            r = self._send(method, path, json, params)
         _maybe_warn_deprecation(r)
         body = _body_of(r)
         if r.status_code == 426:
