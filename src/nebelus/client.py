@@ -60,6 +60,63 @@ class _Agents:
     def set_triggers(self, agent_id: str, used_triggers: list) -> dict:
         return self._t.request("PUT", f"/agents/{agent_id}/triggers/", json={"used_triggers": used_triggers})
 
+    def wiring(self, agent_id: str) -> dict:
+        """REST invoke / WebSocket / webhook / widget-embed / MCP wiring, region-correct."""
+        return self._t.request("GET", f"/agents/{agent_id}/wiring/")
+
+    # sub-agents (the sub-agent's id travels in the body)
+    def attach_sub_agent(self, agent_id: str, sub_agent_id: str, *, instruction: str | None = None,
+                         mode: str = "as_tool", stream_to_client: bool | None = None) -> dict:
+        body: dict[str, Any] = {"agent_id": sub_agent_id, "mode": mode}
+        if instruction is not None:
+            body["instruction"] = instruction
+        if stream_to_client is not None:
+            body["stream_to_client"] = stream_to_client
+        return self._t.request("POST", f"/agents/{agent_id}/sub-agents/", json=body)
+
+    def detach_sub_agent(self, agent_id: str, sub_agent_id: str) -> dict:
+        return self._t.request("DELETE", f"/agents/{agent_id}/sub-agents/", json={"agent_id": sub_agent_id})
+
+    # tools & connectors (id in the path)
+    def attach_ai_tool(self, agent_id: str, tool_id: str) -> dict:
+        return self._t.request("POST", f"/agents/{agent_id}/ai-tools/{tool_id}/")
+
+    def detach_ai_tool(self, agent_id: str, tool_id: str) -> dict:
+        return self._t.request("DELETE", f"/agents/{agent_id}/ai-tools/{tool_id}/")
+
+    def attach_code_connector(self, agent_id: str, connector_id: str) -> dict:
+        return self._t.request("POST", f"/agents/{agent_id}/code-connectors/{connector_id}/")
+
+    def detach_code_connector(self, agent_id: str, connector_id: str) -> dict:
+        return self._t.request("DELETE", f"/agents/{agent_id}/code-connectors/{connector_id}/")
+
+    def attach_mcp_server(self, agent_id: str, server_id: str) -> dict:
+        return self._t.request("POST", f"/agents/{agent_id}/mcp-servers/{server_id}/")
+
+    def detach_mcp_server(self, agent_id: str, server_id: str) -> dict:
+        return self._t.request("DELETE", f"/agents/{agent_id}/mcp-servers/{server_id}/")
+
+    def attach_api_endpoint(self, agent_id: str, endpoint_id: str, **auth: Any) -> dict:
+        """Attach a custom API endpoint. Optional auth-by-REFERENCE kwargs only
+        (use_endpoint_auth / auth_profile_id / auth_method[+auth_config, auth_profile_name])
+        — the service never accepts raw secrets here."""
+        return self._t.request("POST", f"/agents/{agent_id}/api-endpoints/{endpoint_id}/", json=auth or None)
+
+    def detach_api_endpoint(self, agent_id: str, endpoint_id: str) -> dict:
+        return self._t.request("DELETE", f"/agents/{agent_id}/api-endpoints/{endpoint_id}/")
+
+    # schedules
+    def list_schedules(self, agent_id: str) -> Any:
+        return self._t.request("GET", f"/agents/{agent_id}/schedules/")
+
+    def create_schedule(self, agent_id: str, name: str, instruction: str, **cadence: Any) -> dict:
+        return self._t.request(
+            "POST", f"/agents/{agent_id}/schedules/", json={"name": name, "instruction": instruction, **cadence}
+        )
+
+    def cancel_schedule(self, agent_id: str, schedule_id: str) -> dict:
+        return self._t.request("DELETE", f"/agents/{agent_id}/schedules/{schedule_id}/")
+
 
 class _Graph:
     """Granular workflow-graph ops with the visual builder's cascade semantics."""
@@ -119,12 +176,60 @@ class _Resources:
     def ingest_file(self, store_id: str, file_id: str) -> dict:
         return self._t.request("POST", f"/vector-stores/{store_id}/ingest/", json={"file_id": file_id})
 
+    def update_vector_store(self, store_id: str, name: str | None = None, metadata: dict | None = None) -> dict:
+        body: dict[str, Any] = {}
+        if name is not None:
+            body["name"] = name
+        if metadata is not None:
+            body["metadata"] = metadata
+        return self._t.request("PATCH", f"/vector-stores/{store_id}/", json=body)
+
     def attach_store(self, agent_id: str, store_id: str) -> dict:
         return self._t.request("POST", f"/agents/{agent_id}/vector-stores/{store_id}/")
+
+    def detach_store(self, agent_id: str, store_id: str) -> dict:
+        return self._t.request("DELETE", f"/agents/{agent_id}/vector-stores/{store_id}/")
+
+    # custom API endpoints (outbound tool endpoints)
+    def api_endpoints(self, query: str | None = None) -> list:
+        return self._t.request("GET", "/api-endpoints/", params={"query": query} if query else None)["results"]
+
+    def create_api_endpoint(self, **fields: Any) -> dict:
+        return self._t.request("POST", "/api-endpoints/", json=fields)
+
+    def update_api_endpoint(self, endpoint_id: str, **fields: Any) -> dict:
+        return self._t.request("PATCH", f"/api-endpoints/{endpoint_id}/", json=fields)
+
+    def test_api_endpoint(self, endpoint_id: str, test_parameters: dict | None = None) -> dict:
+        return self._t.request("POST", f"/api-endpoints/{endpoint_id}/test/", json={"test_parameters": test_parameters})
+
+    # MCP servers
+    def mcp_servers(self, query: str | None = None) -> list:
+        return self._t.request("GET", "/mcp-servers/", params={"query": query} if query else None)["results"]
+
+    def create_mcp_server(self, **fields: Any) -> dict:
+        return self._t.request("POST", "/mcp-servers/", json=fields)
+
+    def update_mcp_server(self, server_id: str, **fields: Any) -> dict:
+        return self._t.request("PATCH", f"/mcp-servers/{server_id}/", json=fields)
+
+    def probe_mcp_server(self, **fields: Any) -> dict:
+        return self._t.request("POST", "/mcp-servers/probe/", json=fields)
 
     # deployments
     def deployments(self) -> dict:
         return self._t.request("GET", "/deployments/")
+
+    def update_deployment(self, deployment_id: str, name: str | None = None,
+                          description: str | None = None, config_patch: dict | None = None) -> dict:
+        body: dict[str, Any] = {}
+        if name is not None:
+            body["name"] = name
+        if description is not None:
+            body["description"] = description
+        if config_patch is not None:
+            body["config_patch"] = config_patch
+        return self._t.request("PATCH", f"/deployments/{deployment_id}/", json=body)
 
     def create_deployment(self, agent_id: str, deployment_type: str, name: str, **kwargs: Any) -> dict:
         return self._t.request(
@@ -142,6 +247,12 @@ class _Resources:
     # governance
     def policies(self) -> list:
         return self._t.request("GET", "/policies/")["results"]
+
+    def create_policy(self, **fields: Any) -> dict:
+        return self._t.request("POST", "/policies/", json=fields)
+
+    def activate_policy(self, policy_id: str, active: bool = True) -> dict:
+        return self._t.request("POST", f"/policies/{policy_id}/activate/", json={"active": active})
 
 
 class Nebelus:

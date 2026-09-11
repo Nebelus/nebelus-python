@@ -37,16 +37,8 @@ COVERED = {
     f"POST {B}vector-stores/{{store_id}}/ingest/", f"POST {B}agents/{{agent_id}}/vector-stores/{{store_id}}/",
     f"GET {B}deployments/", f"POST {B}deployments/", f"POST {B}deployments/{{deployment_id}}/activate/",
     f"GET {B}deployments/{{deployment_id}}/probe/", f"GET {B}policies/", f"GET {B}describe/", f"GET {B}catalog/",
-}
-
-# Deliberately not an SDK method.
-INTENTIONAL = {
-    f"POST {B}mcp/",  # the MCP JSON-RPC facade — a transport, not a REST operation
-}
-
-# Not yet exposed by the SDK — the debt. GOAL: empty. Shrink by adding the method and
-# moving the op to COVERED. (A stale entry — one that IS covered — also fails, below.)
-GAP_LEDGER = {
+    # Full-parity additions (ledger closed):
+    f"GET {B}agents/{{agent_id}}/wiring/",
     f"POST {B}agents/{{agent_id}}/sub-agents/", f"DELETE {B}agents/{{agent_id}}/sub-agents/",
     f"POST {B}agents/{{agent_id}}/ai-tools/{{tool_id}}/", f"DELETE {B}agents/{{agent_id}}/ai-tools/{{tool_id}}/",
     f"POST {B}agents/{{agent_id}}/code-connectors/{{connector_id}}/", f"DELETE {B}agents/{{agent_id}}/code-connectors/{{connector_id}}/",
@@ -55,14 +47,20 @@ GAP_LEDGER = {
     f"DELETE {B}agents/{{agent_id}}/vector-stores/{{store_id}}/", f"PATCH {B}vector-stores/{{store_id}}/",
     f"GET {B}agents/{{agent_id}}/schedules/", f"POST {B}agents/{{agent_id}}/schedules/",
     f"DELETE {B}agents/{{agent_id}}/schedules/{{schedule_id}}/",
-    f"GET {B}agents/{{agent_id}}/wiring/",
     f"GET {B}api-endpoints/", f"POST {B}api-endpoints/", f"PATCH {B}api-endpoints/{{endpoint_id}}/",
     f"POST {B}api-endpoints/{{endpoint_id}}/test/",
-    f"GET {B}mcp-servers/", f"POST {B}mcp-servers/", f"PATCH {B}mcp-servers/{{server_id}}/",
-    f"POST {B}mcp-servers/probe/",
-    f"PATCH {B}deployments/{{deployment_id}}/",
-    f"POST {B}policies/", f"POST {B}policies/{{policy_id}}/activate/",
+    f"GET {B}mcp-servers/", f"POST {B}mcp-servers/", f"PATCH {B}mcp-servers/{{server_id}}/", f"POST {B}mcp-servers/probe/",
+    f"PATCH {B}deployments/{{deployment_id}}/", f"POST {B}policies/", f"POST {B}policies/{{policy_id}}/activate/",
 }
+
+# Deliberately not an SDK method.
+INTENTIONAL = {
+    f"POST {B}mcp/",  # the MCP JSON-RPC facade — a transport, not a REST operation
+}
+
+# Not yet exposed by the SDK — the debt. GOAL: empty. EMPTY = full parity (2026-09-11).
+# A new server op lands here (or in COVERED/INTENTIONAL) or CI fails.
+GAP_LEDGER: set[str] = set()
 
 
 def _fetch_ops() -> set[str]:
