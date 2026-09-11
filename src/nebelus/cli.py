@@ -33,6 +33,10 @@ def main(argv: list[str] | None = None) -> int:
     c = sub.add_parser("catalog", help="org catalog")
     c.add_argument("--view", default="models")
     c.add_argument("--query")
+    b = sub.add_parser("build", help="AI-assisted: describe an agent and the Vibe Builder builds it (draft)")
+    b.add_argument("prompt", help="plain-language description of the agent to build")
+    b.add_argument("--constraints", help="optional extra constraints to honor")
+    b.add_argument("--json", action="store_true", help="print the full JSON result")
     a = sub.add_parser("apply", help="create-or-update from a manifest (.py or .json)")
     a.add_argument("path")
     d = sub.add_parser("diff", help="what apply would change")
@@ -54,6 +58,21 @@ def main(argv: list[str] | None = None) -> int:
             print(json.dumps(nb.describe(), indent=2, default=str))
         elif args.cmd == "catalog":
             print(json.dumps(nb.catalog(view=args.view, query=args.query), indent=2, default=str))
+        elif args.cmd == "build":
+            result = nb.build(args.prompt, constraints=args.constraints)
+            if args.json:
+                print(json.dumps(result, indent=2, default=str))
+            elif result.get("built"):
+                agent = result["agent"]
+                print(f"built {agent['id']} ({agent.get('name')}) [{agent['status']}]")
+                if result.get("notes"):
+                    print(f"\n{result['notes']}")
+                print(f"\nrefine it:  nebelus export {agent['id']} > agent.py")
+            else:
+                print(f"nothing built [{result.get('status')}]")
+                if result.get("notes"):
+                    print(result["notes"])
+                return 1
         elif args.cmd == "apply":
             agent = nb.apply(_load_manifest(args.path))
             print(f"{agent.id} {agent.status}")

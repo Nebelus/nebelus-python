@@ -171,6 +171,18 @@ class Nebelus:
             params["query"] = query
         return self._t.request("GET", "/catalog/", params=params)["results"]
 
+    def build(self, prompt: str, constraints: str | None = None) -> dict:
+        """AI-assisted build: describe an agent in plain language and the Nebelus Vibe
+        Builder builds it for you — always as a DRAFT. Returns
+        ``{built, agent, agents, notes, status, run_id, thread_id}`` where ``agent`` is
+        the created draft's editable surface (round-trippable via ``export``) and
+        ``notes`` is the builder's summary + assumptions. Billed as AI credits at the
+        build rate. Unlike ``apply`` (you specify every field), this SYNTHESISES."""
+        body: dict[str, Any] = {"prompt": prompt}
+        if constraints:
+            body["constraints"] = constraints
+        return self._t.request("POST", "/agents/build/", json=body)
+
     def graph(self, agent_id: str) -> _Graph:
         return _Graph(self._t, agent_id)
 
