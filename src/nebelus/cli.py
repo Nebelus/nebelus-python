@@ -14,6 +14,15 @@ from .export import export_to_code
 from .models import AgentManifest
 
 
+def _open_browser(url: str) -> None:
+    """Best-effort browser open — never fail the command if it can't (e.g. headless).
+    The URL is always printed too, so suppressing here is safe."""
+    import contextlib
+
+    with contextlib.suppress(Exception):
+        webbrowser.open(url)
+
+
 def _load_manifest(path: str) -> AgentManifest:
     p = Path(path)
     if p.suffix == ".json":
@@ -147,21 +156,15 @@ def main(argv: list[str] | None = None) -> int:
                 if kind == "core":
                     print("  (Nebelus Core upgrades are handled by our team.)")
                 if not args.no_browser:
-                    try:
-                        webbrowser.open(url)
-                    except Exception:  # noqa: BLE001
-                        pass
+                    _open_browser(url)
                 print("\n  Sign in if prompted, then complete the upgrade in your browser.")
         elif args.cmd == "billing":
-            base = (nb._t.base_url or "https://api.nebelus.ai")
+            base = nb._t.base_url or "https://api.nebelus.ai"
             portal = base if ("localhost" in base or "127.0.0.1" in base) else "https://app.nebelus.ai"
             url = f"{portal}/billing-usage/billing"
             print(f"\n  Opening billing:\n  {url}")
             if not args.no_browser:
-                try:
-                    webbrowser.open(url)
-                except Exception:  # noqa: BLE001
-                    pass
+                _open_browser(url)
         elif args.cmd == "keys":
             if args.keys_cmd == "create":
                 out = nb.keys.create(scopes=args.scopes, name=args.name)
