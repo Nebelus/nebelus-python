@@ -312,7 +312,9 @@ class Nebelus:
         body: dict[str, Any] = {"prompt": prompt}
         if constraints:
             body["constraints"] = constraints
-        return self._t.request("POST", "/agents/build/", json=body)
+        # The Vibe Builder synthesises an agent server-side — allow the 10-minute
+        # Agent Builder budget rather than the general read timeout.
+        return self._t.request("POST", "/agents/build/", json=body, timeout=self._t.ai_timeout)
 
     def graph(self, agent_id: str) -> _Graph:
         return _Graph(self._t, agent_id)

@@ -12,7 +12,7 @@ import httpx
 # THE single source of the version. The User-Agent carries it, the server's
 # support-window floor keys on it, and __init__ re-exports it as __version__ —
 # so the advertised version and the wire version can never drift apart.
-SDK_VERSION = "0.1.8"
+SDK_VERSION = "0.1.9"
 
 DEFAULT_BASE_URL = "https://api.nebelus.ai"
 API_PREFIX = "/api/v1/construction"
@@ -72,10 +72,13 @@ class UpgradeRequired(NebelusAPIError):
         return self.payload.get("min_version")
 
 
-# AI-assisted operations (build, probe) run a model server-side and can legitimately
-# take a minute or more — so the read timeout is generous while connect stays short.
-# Override with NEBELUS_TIMEOUT (seconds). A caller-supplied `timeout=` still wins.
-DEFAULT_READ_TIMEOUT = 300.0
+# Normal ops return fast; AI-assisted ops (build, probe) run a model server-side and
+# can legitimately take minutes. So the general read timeout is generous, and the
+# Agent Builder gets a dedicated 10-minute budget (the edge allows up to 30 min).
+# Override the general default with NEBELUS_TIMEOUT (seconds); a caller-supplied
+# `timeout=` still wins. Per-request overrides ride Transport.request(timeout=...).
+DEFAULT_READ_TIMEOUT = 120.0
+AI_BUILD_TIMEOUT = 600.0  # nebelus build — the Vibe Builder synthesises an agent
 
 
 class Transport:
@@ -96,11 +99,14 @@ class Transport:
             self._oauth = creds
             self.base_url = (base_url or os.environ.get("NEBELUS_BASE_URL") or creds.get("base_url") or DEFAULT_BASE_URL).rstrip("/")
             token = creds["access_token"]
+        try:
+            env_timeout = float(os.environ["NEBELUS_TIMEOUT"]) if "NEBELUS_TIMEOUT" in os.environ else None
+        except ValueError:
+            env_timeout = None
+        # The Agent Builder's per-call budget: NEBELUS_TIMEOUT if set, else 10 minutes.
+        self.ai_timeout = env_timeout if env_timeout is not None else AI_BUILD_TIMEOUT
         if timeout is None:
-            try:
-                read = float(os.environ.get("NEBELUS_TIMEOUT", DEFAULT_READ_TIMEOUT))
-            except ValueError:
-                read = DEFAULT_READ_TIMEOUT
+            read = env_timeout if env_timeout is not None else DEFAULT_READ_TIMEOUT
             timeout = httpx.Timeout(read, connect=10.0)
         self._client = httpx.Client(
             base_url=f"{self.base_url}{API_PREFIX}",
@@ -123,9 +129,10 @@ class Transport:
         self._client.headers["Authorization"] = f"Bearer {new['access_token']}"
         return True
 
-    def _send(self, method: str, path: str, json: Any, params: Any) -> httpx.Response:
+    def _send(self, method: str, path: str, json: Any, params: Any, timeout: Any = None) -> httpx.Response:
+        extra = {} if timeout is None else {"timeout": timeout}
         for attempt in range(MAX_RATE_LIMIT_RETRIES + 1):
-            r = self._client.request(method, path, json=json, params=params)
+            r = self._client.request(method, path, json=json, params=params, **extra)
             if r.status_code != 429:
                 return r
             retry_after = _retry_after_seconds(r)
@@ -134,11 +141,11 @@ class Transport:
             time.sleep(retry_after)
         return r  # unreachable, but keeps the type checker happy
 
-    def request(self, method: str, path: str, *, json: Any = None, params: Any = None) -> Any:
-        r = self._send(method, path, json, params)
+    def request(self, method: str, path: str, *, json: Any = None, params: Any = None, timeout: Any = None) -> Any:
+        r = self._send(method, path, json, params, timeout)
         # A stored OAuth access token may have expired — rotate once and retry.
         if r.status_code == 401 and self._try_refresh():
-            r = self._send(method, path, json, params)
+            r = self._send(method, path, json, params, timeout)
         _maybe_warn_deprecation(r)
         body = _body_of(r)
         if r.status_code == 426:
