@@ -94,7 +94,8 @@ def main(argv: list[str] | None = None) -> int:
                 print("No agents yet. Create one with `nebelus build \"...\"` or `nebelus apply <file>`.")
             else:
                 for row in rows:
-                    print(f"{row.get('id')}  {str(row.get('status','')):8}  {row.get('name','')}"
+                    status = str(row.get("status", ""))
+                    print(f"{row.get('id')}  {status:8}  {row.get('name','')}"
                           + (f"  [{row.get('model_id')}]" if row.get('model_id') else ""))
         elif args.cmd == "catalog":
             print(json.dumps(nb.catalog(view=args.view, query=args.query), indent=2, default=str))
