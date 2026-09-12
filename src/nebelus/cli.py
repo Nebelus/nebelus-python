@@ -34,6 +34,8 @@ def main(argv: list[str] | None = None) -> int:
     lg.add_argument("--no-browser", action="store_true", help="don't auto-open the browser; just print the URL")
     sub.add_parser("logout", help="remove the stored credentials")
     sub.add_parser("describe", help="everything buildable in this org, machine-readable")
+    ls = sub.add_parser("list", help="list this org's agents (id, name, status)")
+    ls.add_argument("--json", action="store_true", help="print the full JSON rows")
     c = sub.add_parser("catalog", help="org catalog")
     c.add_argument("--view", default="models")
     c.add_argument("--query")
@@ -84,6 +86,16 @@ def main(argv: list[str] | None = None) -> int:
     try:
         if args.cmd == "describe":
             print(json.dumps(nb.describe(), indent=2, default=str))
+        elif args.cmd == "list":
+            rows = nb.agents.list()
+            if args.json:
+                print(json.dumps(rows, indent=2, default=str))
+            elif not rows:
+                print("No agents yet. Create one with `nebelus build \"...\"` or `nebelus apply <file>`.")
+            else:
+                for row in rows:
+                    print(f"{row.get('id')}  {str(row.get('status','')):8}  {row.get('name','')}"
+                          + (f"  [{row.get('model_id')}]" if row.get('model_id') else ""))
         elif args.cmd == "catalog":
             print(json.dumps(nb.catalog(view=args.view, query=args.query), indent=2, default=str))
         elif args.cmd == "build":
