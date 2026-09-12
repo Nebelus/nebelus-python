@@ -353,6 +353,27 @@ def test_find_by_manifest_id_falls_back_on_old_servers(respx_mock):
     assert agent is not None and agent.id == "a-2"
 
 
+def test_find_by_manifest_id_exported_fallback_matches_source(respx_mock):
+    """An `exported-<id>` manifest whose source was never apply-managed carries no
+    stamped manifest_id, so match the SOURCE by embedded id — apply updates in place
+    instead of forking a duplicate."""
+    respx_mock.get(f"{BASE}/agents/").respond(200, json={"results": []})  # nothing stamped
+    src = respx_mock.get(f"{BASE}/agents/src-9/").respond(
+        200, json={"id": "src-9", "name": "x", "status": "draft", "metadata": {}}
+    )
+    nb = Nebelus(api_key="k", base_url="https://api.test")
+    agent = nb.find_by_manifest_id("exported-src-9")
+    assert agent is not None and agent.id == "src-9"
+    assert src.call_count == 1
+
+
+def test_find_by_manifest_id_no_match_returns_none(respx_mock):
+    """A hand-authored manifest_id with no match (and no exported- prefix) → create path."""
+    respx_mock.get(f"{BASE}/agents/").respond(200, json={"results": []})
+    nb = Nebelus(api_key="k", base_url="https://api.test")
+    assert nb.find_by_manifest_id("my-custom-id") is None
+
+
 # ------------------------------------------------------- SDK version handling
 
 

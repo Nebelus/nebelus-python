@@ -334,6 +334,17 @@ class Nebelus:
                 continue
             if (agent.metadata or {}).get("manifest_id") == manifest_id:
                 return agent
+        # Round-trip fallback: `export` gives an agent that was never apply-managed
+        # the manifest_id "exported-<source id>". Nothing carries that id STAMPED yet,
+        # so `apply` would fork a duplicate. Match the SOURCE by its embedded id so
+        # apply updates it IN PLACE (and stamps manifest_id — the server merges
+        # metadata key-wise, so siblings survive). A hand-authored manifest_id never
+        # uses this prefix, so this only ever rescues the export round-trip.
+        if manifest_id.startswith("exported-"):
+            try:
+                return self.agents.get(manifest_id[len("exported-"):])
+            except NotFound:
+                return None
         return None
 
     @staticmethod
