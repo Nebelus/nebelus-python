@@ -6,6 +6,7 @@ import argparse
 import importlib.util
 import json
 import sys
+import webbrowser
 from pathlib import Path
 
 from .client import Nebelus, NebelusAPIError
@@ -36,6 +37,10 @@ def main(argv: list[str] | None = None) -> int:
     sub.add_parser("describe", help="everything buildable in this org, machine-readable")
     ls = sub.add_parser("list", help="list this org's agents (id, name, status)")
     ls.add_argument("--json", action="store_true", help="print the full JSON rows")
+    up = sub.add_parser("upgrade", help="upgrade your plan (opens the browser)")
+    up.add_argument("--no-browser", action="store_true", help="just print the URL")
+    bl = sub.add_parser("billing", help="open Billing & Usage in the browser")
+    bl.add_argument("--no-browser", action="store_true", help="just print the URL")
     c = sub.add_parser("catalog", help="org catalog")
     c.add_argument("--view", default="models")
     c.add_argument("--query")
@@ -130,6 +135,33 @@ def main(argv: list[str] | None = None) -> int:
             print(json.dumps(nb.agents.validate(args.agent_id).model_dump(), indent=2))
         elif args.cmd == "export":
             print(export_to_code(nb.agents.get(args.agent_id)))
+        elif args.cmd == "upgrade":
+            info = (nb.describe() or {}).get("account") or {}
+            kind, url = info.get("kind"), info.get("upgrade_url")
+            if kind == "developers" and info.get("deploy_enabled"):
+                print("You're already on the Deploy tier — `nebelus deploy` is enabled.")
+            elif not url or kind == "enterprise":
+                print("Your workspace is managed by our team — contact sales@nebelus.ai to change your plan.")
+            else:
+                print(f"\n  Opening your upgrade page:\n  {url}")
+                if kind == "core":
+                    print("  (Nebelus Core upgrades are handled by our team.)")
+                if not args.no_browser:
+                    try:
+                        webbrowser.open(url)
+                    except Exception:  # noqa: BLE001
+                        pass
+                print("\n  Sign in if prompted, then complete the upgrade in your browser.")
+        elif args.cmd == "billing":
+            base = (nb._t.base_url or "https://api.nebelus.ai")
+            portal = base if ("localhost" in base or "127.0.0.1" in base) else "https://app.nebelus.ai"
+            url = f"{portal}/billing-usage/billing"
+            print(f"\n  Opening billing:\n  {url}")
+            if not args.no_browser:
+                try:
+                    webbrowser.open(url)
+                except Exception:  # noqa: BLE001
+                    pass
         elif args.cmd == "keys":
             if args.keys_cmd == "create":
                 out = nb.keys.create(scopes=args.scopes, name=args.name)
