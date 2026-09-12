@@ -34,7 +34,11 @@ nebelus login          # device flow: opens a browser, you approve a short code 
 `nebelus logout` removes them. Or set an API key from the portal (Settings → API keys):
 `export NEBELUS_API_KEY=…` (an explicit key always takes precedence over a stored login).
 
-Scopes: `api.construction.read`, `api.construction.write`, `api.construction.deploy`. Your
+Scopes come in two families: **`api.agents.read` / `api.agents.write`** *invoke* a deployed
+agent (REST + WebSocket), while **`api.construction.read` / `api.construction.write`** *build and
+edit* agents (and reach MCP); **`api.construction.deploy`** additionally allows programmatic
+deploy where your org has opted in. ⚠️ A public **web-widget** embed ships its key to the
+browser — put an **`api.agents`-only** key there, never one carrying `api.construction.*`. Your
 Build Envelope (if your organization uses one) applies to code exactly as to every other surface.
 
 ## CLI
@@ -72,18 +76,66 @@ the SDK: `nb.build("…")`.
 - **Wiring an agent into your app:** `GET /api/v1/construction/agents/<id>/wiring/` returns the
   REST invoke URL, WebSocket URL, webhook URL, web-widget embed snippet and MCP connection —
   region-correct, in the exact formats to paste in.
-- **Build over MCP:** `https://api.nebelus.ai/api/v1/construction/mcp/` (connect Claude/Cursor).
+- **Build over MCP:** `https://api.nebelus.ai/api/v1/construction/mcp/` — JSON-RPC 2.0 over
+  streamable HTTP, ~48 build tools (**full build parity minus deploy** — there is no deploy tool
+  over MCP, by design). Authenticate with an `api.construction.*` key or OAuth 2.1 (Claude.ai /
+  Desktop connect via OAuth). Add it to Claude Code / Cursor:
+  `claude mcp add --transport http nebelus https://api.nebelus.ai/api/v1/construction/mcp/ --header "Authorization: Bearer <api.construction key>"`
 - **TypeScript:** `@nebelus/construction` is the TS peer of this SDK.
 
 Everything the visual builders can configure is reachable from here too — model routing,
 delivery guard, grounding trace, schedules, knowledge, connectors, governance and channels.
 
+## Invoke a deployed agent
+
+`nebelus deploy <agent-id>` makes an agent **active** — that's the whole step. There is no
+separate per-channel deployment for REST or WebSocket: an active agent plus an `api.agents.*`
+key is callable immediately. (Web widget and webhook are separate opt-in channels; see below.)
+
+**REST** — OpenAI-style, at `POST /api/agents/<agent-id>/chat/` (note: **no** `/v1`):
+
+```bash
+curl -X POST 'https://api.nebelus.ai/api/agents/<AGENT_ID>/chat/' \
+  -H 'Authorization: Bearer <api.agents key>' \
+  -H 'Content-Type: application/json' \
+  -d '{"messages":[{"role":"user","content":"Summarize the return policy."}],"stream":false}'
+```
+
+The response is a `chat.completion` shape with a top-level `thread_id`, `message` and `usage`.
+Omit `thread_id` to start a conversation; pass the returned value back to continue — the server
+keeps history, so you never resend prior turns (`session_id` is an alias). Add `"stream":true`
+(or the header `Accept: text/event-stream`) for SSE: `message_start` carries the `thread_id`,
+then `content_block` deltas, `message_delta`, `usage_metadata` (with prompt-cache read/creation),
+`cost_update` (in-stream cost, EUR/USD/SAR + markup), `thread_title`, and `message_stop`.
+
+**WebSocket** — `wss://api.nebelus.ai/ws/agents/<AGENT_ID>/chat/?api_key=<KEY>`. Browsers can't
+set request headers on a WebSocket, so pass the key as `?api_key=`; native clients may send
+`Authorization: Bearer <key>` instead. Send `{"type":"chat","content":"..."}` and you get the
+same event frames as SSE. A pure API-key client works — it is not session/JWT-only.
+
+**Webhook** (event-driven, async) — external channels unlock only after **identity
+verification** (self-serve / Nebelus Developers orgs get the web widget and in-portal testing
+immediately, but webhooks and non-widget deployments wait on verification). The `/w/<key>/` URL
+also **requires an auth token** by default — send `X-Webhook-Token: <secret>` as a header (or
+`?X-Webhook-Token=<secret>` when the webhook's method is query_param); the URL alone returns 401.
+It is fire-and-forget: it returns `{"message":"Webhook received successfully","event_id":…}` and
+runs the agent in the background rather than replying inline.
+
+KSA / GCC orgs use `api.ksa.nebelus.ai`; the region follows the org, and `get_wiring` returns the
+region-correct URLs to paste in.
+
+> **Copy-paste note:** keep JSON bodies in single quotes, and avoid `?` inside example messages
+> (an unquoted `?` triggers zsh globbing). If a command lands mangled, check for editor/terminal
+> "smart quotes" — the API needs straight `"` and `'`.
+
 ## Two-way with the portal
 
 `nebelus export` (or `nebelus.export_to_code`) turns any live agent — including one a
-colleague built visually — into a Python manifest you own in git. `apply` takes it back.
-The merge contract makes this safe in both directions: a manifest only manages the fields
-it declares, so portal edits to everything else survive every apply, and `diff` never
+colleague built visually — into a Python manifest you own in git. The full round trip is
+`nebelus export <id> > agent.py` → edit → `nebelus diff agent.py` → `nebelus apply agent.py`;
+as of **SDK 0.1.14** `apply` updates the exported agent **in place** (it no longer forks a
+duplicate). The merge contract makes this safe in both directions: a manifest only manages the
+fields it declares, so portal edits to everything else survive every apply, and `diff` never
 reports server-side normalization as drift.
 
 ## Coming from LangGraph
