@@ -12,7 +12,7 @@ import httpx
 # THE single source of the version. The User-Agent carries it, the server's
 # support-window floor keys on it, and __init__ re-exports it as __version__ —
 # so the advertised version and the wire version can never drift apart.
-SDK_VERSION = "0.1.9"
+SDK_VERSION = "0.1.10"
 
 DEFAULT_BASE_URL = "https://api.nebelus.ai"
 API_PREFIX = "/api/v1/construction"
