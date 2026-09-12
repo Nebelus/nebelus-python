@@ -54,6 +54,13 @@ def main(argv: list[str] | None = None) -> int:
     e.add_argument("agent_id")
     v = sub.add_parser("validate", help="pre-flight findings")
     v.add_argument("agent_id")
+    k = sub.add_parser("keys", help="manage API keys")
+    ksub = k.add_subparsers(dest="keys_cmd", required=True)
+    kc = ksub.add_parser("create", help="mint an API key (full value shown once)")
+    kc.add_argument("--scope", action="append", dest="scopes", required=True,
+                    help="repeatable, e.g. --scope api.construction.read --scope api.construction.write")
+    kc.add_argument("--name")
+    ksub.add_parser("list", help="list this org's API keys (masked)")
     args = ap.parse_args(argv)
 
     # login/logout run BEFORE constructing the client (login has no credentials yet).
@@ -109,6 +116,14 @@ def main(argv: list[str] | None = None) -> int:
             print(json.dumps(nb.agents.validate(args.agent_id).model_dump(), indent=2))
         elif args.cmd == "export":
             print(export_to_code(nb.agents.get(args.agent_id)))
+        elif args.cmd == "keys":
+            if args.keys_cmd == "create":
+                out = nb.keys.create(scopes=args.scopes, name=args.name)
+                print(out.get("sensitive_id") or json.dumps(out, indent=2))
+                print("Save this key now — it won't be shown again.", file=sys.stderr)
+            else:
+                for row in nb.keys.list():
+                    print(f"{row.get('partial_key', row.get('id'))}  {row.get('name','')}  {row.get('scopes', [])}")
     except NebelusAPIError as exc:
         print(f"error [{exc.status_code}]: {exc.detail}", file=sys.stderr)
         if exc.envelope:

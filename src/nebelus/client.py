@@ -159,6 +159,25 @@ class _Graph:
         return self._op("set_state_field", field=field, field_type=field_type, **kwargs)
 
 
+class _Keys:
+    """Manage org API keys from code (the `nebelus keys` CLI). Reachable with a
+    `nebelus login` token — key-minting lives on the construction surface."""
+
+    def __init__(self, t: Transport):
+        self._t = t
+
+    def list(self) -> list:
+        return self._t.request("GET", "/api-keys/")["results"]
+
+    def create(self, scopes: list[str], name: str | None = None, is_service_account: bool = False) -> dict:
+        """Mint an API key. The full key is in the response ONCE (``sensitive_id``).
+        The deploy scope needs the org's programmatic-deploy opt-in."""
+        body: dict[str, Any] = {"scopes": scopes, "is_service_account": is_service_account}
+        if name:
+            body["name"] = name
+        return self._t.request("POST", "/api-keys/", json=body)
+
+
 class _Resources:
     def __init__(self, t: Transport):
         self._t = t
@@ -262,6 +281,7 @@ class Nebelus:
         self._t = Transport(api_key=api_key, base_url=base_url, timeout=timeout)
         self.agents = _Agents(self._t)
         self.resources = _Resources(self._t)
+        self.keys = _Keys(self._t)
 
     def close(self) -> None:
         self._t.close()

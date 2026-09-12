@@ -52,6 +52,8 @@ nebelus validate <agent-id>            # pre-flight findings before you probe or
 nebelus probe <agent-id> "Hi there"    # run the draft through the real runtime
 nebelus export <agent-id> > agent.py   # a live agent as a maintainable Python manifest
 nebelus deploy <agent-id>              # needs the deploy scope + the org's opt-in
+nebelus keys create --scope api.construction.read --scope api.construction.write
+nebelus keys list                      # this org's keys (masked)
 ```
 
 **`nebelus build "<prompt>"`** is AI-assisted: describe the agent in plain language and the
