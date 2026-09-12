@@ -87,6 +87,7 @@ def main(argv: list[str] | None = None) -> int:
         elif args.cmd == "catalog":
             print(json.dumps(nb.catalog(view=args.view, query=args.query), indent=2, default=str))
         elif args.cmd == "build":
+            print("Building your agent… this can take a minute or two.", file=sys.stderr, flush=True)
             result = nb.build(args.prompt, constraints=args.constraints)
             if args.json:
                 print(json.dumps(result, indent=2, default=str))

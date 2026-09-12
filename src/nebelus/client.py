@@ -277,7 +277,7 @@ class _Resources:
 class Nebelus:
     """Entry point. Reads NEBELUS_API_KEY / NEBELUS_BASE_URL when not passed."""
 
-    def __init__(self, api_key: str | None = None, base_url: str | None = None, timeout: float = 60.0):
+    def __init__(self, api_key: str | None = None, base_url: str | None = None, timeout: float | None = None):
         self._t = Transport(api_key=api_key, base_url=base_url, timeout=timeout)
         self.agents = _Agents(self._t)
         self.resources = _Resources(self._t)
