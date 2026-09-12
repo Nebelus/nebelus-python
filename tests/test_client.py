@@ -390,3 +390,14 @@ def test_user_agent_matches_version():
     t = Transport(api_key="k", base_url="https://api.test")
     ua = t._client.headers["User-Agent"]
     assert ua == f"nebelus-python/{nebelus.__version__}"
+
+
+@respx.mock
+def test_keys_create_and_list(nb):
+    respx.post(f"{BASE}/api-keys/").mock(return_value=httpx.Response(
+        201, json={"sensitive_id": "sk-ns-org-x-abc", "partial_key": "sk-ns-***abc", "scopes": ["api.construction.read"]}))
+    out = nb.keys.create(scopes=["api.construction.read"], name="cli")
+    assert out["sensitive_id"] == "sk-ns-org-x-abc"
+    respx.get(f"{BASE}/api-keys/").mock(return_value=httpx.Response(
+        200, json={"results": [{"id": "k1", "partial_key": "sk-ns-***", "scopes": []}]}))
+    assert nb.keys.list()[0]["id"] == "k1"

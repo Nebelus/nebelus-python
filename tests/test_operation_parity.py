@@ -51,6 +51,7 @@ COVERED = {
     f"POST {B}api-endpoints/{{endpoint_id}}/test/",
     f"GET {B}mcp-servers/", f"POST {B}mcp-servers/", f"PATCH {B}mcp-servers/{{server_id}}/", f"POST {B}mcp-servers/probe/",
     f"PATCH {B}deployments/{{deployment_id}}/", f"POST {B}policies/", f"POST {B}policies/{{policy_id}}/activate/",
+    f"GET {B}api-keys/", f"POST {B}api-keys/",  # nebelus keys (Phase 5)
 }
 
 # Deliberately not an SDK method.
