@@ -12,7 +12,7 @@ import httpx
 # THE single source of the version. The User-Agent carries it, the server's
 # support-window floor keys on it, and __init__ re-exports it as __version__ —
 # so the advertised version and the wire version can never drift apart.
-SDK_VERSION = "0.1.7"
+SDK_VERSION = "0.1.8"
 
 DEFAULT_BASE_URL = "https://api.nebelus.ai"
 API_PREFIX = "/api/v1/construction"
@@ -72,8 +72,14 @@ class UpgradeRequired(NebelusAPIError):
         return self.payload.get("min_version")
 
 
+# AI-assisted operations (build, probe) run a model server-side and can legitimately
+# take a minute or more — so the read timeout is generous while connect stays short.
+# Override with NEBELUS_TIMEOUT (seconds). A caller-supplied `timeout=` still wins.
+DEFAULT_READ_TIMEOUT = 300.0
+
+
 class Transport:
-    def __init__(self, api_key: str | None = None, base_url: str | None = None, timeout: float = 60.0):
+    def __init__(self, api_key: str | None = None, base_url: str | None = None, timeout: float | httpx.Timeout | None = None):
         self.api_key = api_key or os.environ.get("NEBELUS_API_KEY") or ""
         self._oauth: dict | None = None
         if self.api_key:
@@ -90,6 +96,12 @@ class Transport:
             self._oauth = creds
             self.base_url = (base_url or os.environ.get("NEBELUS_BASE_URL") or creds.get("base_url") or DEFAULT_BASE_URL).rstrip("/")
             token = creds["access_token"]
+        if timeout is None:
+            try:
+                read = float(os.environ.get("NEBELUS_TIMEOUT", DEFAULT_READ_TIMEOUT))
+            except ValueError:
+                read = DEFAULT_READ_TIMEOUT
+            timeout = httpx.Timeout(read, connect=10.0)
         self._client = httpx.Client(
             base_url=f"{self.base_url}{API_PREFIX}",
             headers={"Authorization": f"Bearer {token}", "User-Agent": f"nebelus-python/{SDK_VERSION}"},
