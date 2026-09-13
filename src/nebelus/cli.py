@@ -66,6 +66,10 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("message")
     dep = sub.add_parser("deploy", help="deploy (needs org opt-in + deploy scope)")
     dep.add_argument("agent_id")
+    ar = sub.add_parser("archive", help="take an agent offline (archived)")
+    ar.add_argument("agent_id")
+    ua = sub.add_parser("unarchive", help="bring an archived agent back to draft")
+    ua.add_argument("agent_id")
     e = sub.add_parser("export", help="export a live agent as a Python manifest")
     e.add_argument("agent_id")
     v = sub.add_parser("validate", help="pre-flight findings")
@@ -140,6 +144,10 @@ def main(argv: list[str] | None = None) -> int:
             print(r.reply or r.model_dump())
         elif args.cmd == "deploy":
             print(json.dumps(nb.agents.deploy(args.agent_id)))
+        elif args.cmd == "archive":
+            print(json.dumps(nb.agents.archive(args.agent_id)))
+        elif args.cmd == "unarchive":
+            print(json.dumps(nb.agents.unarchive(args.agent_id)))
         elif args.cmd == "validate":
             print(json.dumps(nb.agents.validate(args.agent_id).model_dump(), indent=2))
         elif args.cmd == "export":

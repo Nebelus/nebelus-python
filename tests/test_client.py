@@ -178,6 +178,17 @@ def test_cli_apply_and_diff(tmp_path, respx_mock, monkeypatch):
     assert main(["diff", str(manifest_json)]) == 0
 
 
+def test_cli_archive_and_unarchive(respx_mock, monkeypatch):
+    from nebelus.cli import main
+
+    monkeypatch.setenv("NEBELUS_API_KEY", "test-key")
+    monkeypatch.setenv("NEBELUS_BASE_URL", "https://api.test")
+    respx_mock.post(f"{BASE}/agents/a-1/archive/").respond(200, json={"id": "a-1", "status": "archived"})
+    assert main(["archive", "a-1"]) == 0
+    respx_mock.delete(f"{BASE}/agents/a-1/archive/").respond(200, json={"id": "a-1", "status": "draft"})
+    assert main(["unarchive", "a-1"]) == 0
+
+
 def test_cli_error_paths_exit_nonzero(capsys, respx_mock, monkeypatch):
     from nebelus.cli import main
 
